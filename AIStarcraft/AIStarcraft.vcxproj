@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{2E63AE74-758A-4607-9DE4-D28E814A6E13}</ProjectGuid>
+    <ProjectGuid>{D2F37E2D-01F2-4D31-ADC9-F9C9AE08B29C}</ProjectGuid>
     <RootNamespace>ExampleAIModule</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>

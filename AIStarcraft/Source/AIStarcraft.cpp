@@ -8,6 +8,8 @@ void AIStarcraft::onStart()
 {
   // Hello World!
   Broodwar->sendText("Hello world!");
+  Broodwar->sendText("operation cwal");
+  Broodwar->sendText("black sheep wall");
 
   // Print the map name.
   // BWAPI returns std::string when retrieving a string, don't forget to add .c_str() when printing!
@@ -61,6 +63,7 @@ void AIStarcraft::onEnd(bool isWinner)
 
 void AIStarcraft::onFrame()
 {
+  TilePosition targetBuildLocation;
   // Called once every game frame
 
   // Display the game frame rate as text in the upper left area of the screen
@@ -115,7 +118,7 @@ void AIStarcraft::onFrame()
         else if ( !u->getPowerUp() )  // The worker cannot harvest anything if it
         {                             // is carrying a powerup such as a flag
           // Harvest from the nearest mineral patch or gas refinery
-          if ( !u->gather( u->getClosestUnit( IsMineralField || IsRefinery )) )
+          if ( !u->gather( u->getClosestUnit( IsMineralField || IsRefinery ), true) )
           {
             // If the call fails, then print the last error message
             Broodwar << Broodwar->getLastError() << std::endl;
@@ -133,8 +136,9 @@ void AIStarcraft::onFrame()
       if ( u->isIdle()  )
       {
 		Unitset mineralCount = u->getUnitsInRadius(workerRadius, IsMineralField);
+        Unitset refineryCount = u->getUnitsInRadius(workerRadius, IsRefinery);
 		Unitset workerCount = u->getUnitsInRadius(workerRadius, IsWorker);
-		if ((workerCount.size() < 3) || (workerCount.size() < 12 && mineralCount.size() > 1)) {
+		if ((workerCount.size() < (mineralCount.size() + 3) + (refineryCount.size() * 3))) {
 			if (!u->train(u->getType().getRace().getWorker())) {
 				Position pos = u->getPosition();
 				Error lastErr = Broodwar->getLastError();
@@ -144,25 +148,27 @@ void AIStarcraft::onFrame()
 
 				// Retrieve the supply provider type in the case that we have run out of supplies
 				UnitType supplyProviderType = u->getType().getRace().getSupplyProvider();
-				static int lastChecked = 0;
+				static int lastSupplyChecked = 0;
 
 				// If we are supply blocked and haven't tried constructing more recently
 				if (lastErr == Errors::Insufficient_Supply &&
-					lastChecked + 400 < Broodwar->getFrameCount() &&
-					Broodwar->self()->incompleteUnitCount(supplyProviderType) == 0)
+					lastSupplyChecked + 400 < Broodwar->getFrameCount() &&
+					Broodwar->self()->incompleteUnitCount(supplyProviderType) == 0 &&
+                    Broodwar->self()->minerals() >= supplyProviderType.mineralPrice())
 				{
-					lastChecked = Broodwar->getFrameCount();
-
+                    
 					// Retrieve a unit that is capable of constructing the supply needed
 					Unit supplyBuilder = u->getClosestUnit(GetType == supplyProviderType.whatBuilds().first &&
-						(IsIdle || IsCarryingGas || IsCarryingMinerals) &&
+						(IsIdle || IsCarryingSomething) &&
 						IsOwned);
 					// If a unit was found
 					if (supplyBuilder)
 					{
+                        lastSupplyChecked = Broodwar->getFrameCount();
+                        
 						if (supplyProviderType.isBuilding())
 						{
-							TilePosition targetBuildLocation = Broodwar->getBuildLocation(supplyProviderType, supplyBuilder->getTilePosition());
+							targetBuildLocation = Broodwar->getBuildLocation(supplyProviderType, supplyBuilder->getTilePosition());
 							if (targetBuildLocation)
 							{
 								// Register an event that draws the target build location
@@ -175,8 +181,12 @@ void AIStarcraft::onFrame()
 									nullptr,  // condition
 									supplyProviderType.buildTime() + 100);  // frames to run
 
+                                //supplyBuilder->is;
+                                //Broodwar << "Current frame " << Broodwar->getFrameCount() << std::endl;
+                                //Broodwar << "Last command " << supplyBuilder->getLastCommandFrame() << std::endl;
 			                    // Order the builder to construct the supply structure
 								supplyBuilder->build(supplyProviderType, targetBuildLocation);
+                                
 							}
 						}
 						else
@@ -187,13 +197,85 @@ void AIStarcraft::onFrame()
 					} // closure: supplyBuilder is valid
 				} // closure: insufficient supply
 			}
-		}
+        } else {
+            
+            if (refineryCount.size() == 0) {
+                UnitType refineryType = u->getType().getRace().getRefinery();
+                static int lastRefineryChecked = 0;
+
+                if (lastRefineryChecked + 400 < Broodwar->getFrameCount() &&
+                    Broodwar->self()->incompleteUnitCount(refineryType) == 0 &&
+                    Broodwar->self()->minerals() >= refineryType.mineralPrice()) {
+
+                    lastRefineryChecked = Broodwar->getFrameCount();
+                    // Retrieve a unit that is capable of constructing the supply needed
+                    Unit supplyBuilder = u->getClosestUnit(GetType == refineryType.whatBuilds().first &&
+                        (IsIdle || IsCarryingSomething) &&
+                        IsOwned);
+
+                    targetBuildLocation = Broodwar->getBuildLocation(refineryType, u->getTilePosition(), 15);
+                    if (targetBuildLocation)
+                    {
+                        // Register an event that draws the target build location
+                        Broodwar->registerEvent([targetBuildLocation, refineryType](Game*)
+                            {
+                                Broodwar->drawBoxMap(Position(targetBuildLocation),
+                                    Position(targetBuildLocation + refineryType.tileSize()),
+                                    Colors::Blue);
+                            },
+                            nullptr,  // condition
+                                refineryType.buildTime() + 100);  // frames to run
+
+                        supplyBuilder->build(refineryType, targetBuildLocation);
+
+                    }
+                }
+            }
+            
+            
+        }
         // If that fails, draw the error at the location so that you can visibly see what went wrong!
         // However, drawing the error once will only appear for a single frame
         // so create an event that keeps it on the screen for some frames
         
       } // closure: failed to train idle unit
 
+    } else if (u->getType() == UnitTypes::Protoss_Pylon) {
+        int pylonRadius = 200;
+        //Broodwar->drawCircleMap(u->getPosition(), pylonRadius, Colors::Cyan);
+        Unitset canonCount = u->getUnitsInRadius(pylonRadius, GetType == UnitTypes::Protoss_Photon_Cannon);
+
+        if (canonCount.size() < 4) {
+            UnitType canonType = UnitTypes::Protoss_Photon_Cannon;
+            static int lastCanonChecked = 0;
+            if (lastCanonChecked + 100 < Broodwar->getFrameCount() &&
+                Broodwar->self()->incompleteUnitCount(canonType) == 0 &&
+                Broodwar->self()->minerals() >= canonType.mineralPrice()) {
+
+                lastCanonChecked = Broodwar->getFrameCount();
+                // Retrieve a unit that is capable of constructing the supply needed
+                Unit supplyBuilder = u->getClosestUnit(GetType == canonType.whatBuilds().first &&
+                    (IsIdle || IsCarryingSomething) &&
+                    IsOwned);
+
+                targetBuildLocation = Broodwar->getBuildLocation(canonType, u->getTilePosition(), 10);
+                if (targetBuildLocation)
+                {
+                    // Register an event that draws the target build location
+                    Broodwar->registerEvent([targetBuildLocation, canonType](Game*)
+                        {
+                            Broodwar->drawBoxMap(Position(targetBuildLocation),
+                                Position(targetBuildLocation + canonType.tileSize()),
+                                Colors::Blue);
+                        },
+                        nullptr,  // condition
+                            canonType.buildTime() + 100);  // frames to run
+
+                    supplyBuilder->build(canonType, targetBuildLocation);
+
+                }
+            }
+        }
     }
 
   } // closure: unit iterator
