@@ -1,4 +1,4 @@
-#include "ExampleAIModule.h"
+#include "AIStarcraft.h"
 #include <iostream>
 
 using namespace BWAPI;
