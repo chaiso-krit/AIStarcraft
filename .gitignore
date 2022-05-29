@@ -3,3 +3,9 @@
 ################################################################################
 
 /Release/AIStarcraft.dll
+/Release/AIStarcraft.pdb
+/Release/BWAPILIB.lib
+/Release/BWAPILIB.pdb
+/AIStarcraft/Release/AIStarcraft.tlog
+/AIStarcraft/Release
+/.vs
